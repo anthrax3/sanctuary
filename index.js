@@ -920,6 +920,40 @@
     impl: map
   };
 
+  //# flip :: Functor f => f (a -> b) -> a -> f b
+  //.
+  //. Curried version of [`Z.flip`][]. Maps over the given functions, applying
+  //. each to the given value.
+  //.
+  //. Replacing `Functor f => f` with `Function x` produces the C combinator
+  //. from combinatory logic:
+  //.
+  //.     Functor f => f (a -> b) -> a -> f b
+  //.     Function x (a -> b) -> a -> Function x b
+  //.     Function x (a -> c) -> a -> Function x c
+  //.     Function x (b -> c) -> b -> Function x c
+  //.     Function a (b -> c) -> b -> Function a c
+  //.     (a -> b -> c) -> b -> a -> c
+  //.
+  //. ```javascript
+  //. > S.flip (S.concat) ('!') ('foo')
+  //. 'foo!'
+  //.
+  //. > S.flip ([Math.floor, Math.ceil]) (1.5)
+  //. [1, 2]
+  //.
+  //. > S.flip ({floor: Math.floor, ceil: Math.ceil}) (1.5)
+  //. {floor: 1, ceil: 2}
+  //.
+  //. > S.flip (Cons (Math.floor) (Cons (Math.ceil) (Nil))) (1.5)
+  //. Cons (1) (Cons (2) (Nil))
+  //. ```
+  _.flip = {
+    consts: {f: [Z.Functor]},
+    types: [f (Fn (a) (b)), a, f (b)],
+    impl: curry2 (Z.flip)
+  };
+
   //# bimap :: Bifunctor f => (a -> b) -> (c -> d) -> f a c -> f b d
   //.
   //. Curried version of [`Z.bimap`][].
@@ -1580,30 +1614,6 @@
     impl: curry5
   };
 
-  //# flip :: (a -> b -> c) -> b -> a -> c
-  //.
-  //. Takes a curried binary function and two values, and returns the
-  //. result of applying the function to the values in reverse order.
-  //.
-  //. This is the C combinator from combinatory logic.
-  //.
-  //. ```javascript
-  //. > S.flip (S.concat) ('foo') ('bar')
-  //. 'barfoo'
-  //. ```
-  function flip(f) {
-    return function(x) {
-      return function(y) {
-        return f (y) (x);
-      };
-    };
-  }
-  _.flip = {
-    consts: {},
-    types: [Fn (a) (Fn (b) (c)), b, a, c],
-    impl: flip
-  };
-
   //. ### Composition
 
   //# compose :: Semigroupoid s => s b c -> s a b -> s a c
@@ -2223,10 +2233,13 @@
   //. > S.fromMaybe_ (() => fib (30)) (S.Nothing)
   //. 832040
   //. ```
+  function fromMaybe_(thunk) {
+    return maybe_ (thunk) (I);
+  }
   _.fromMaybe_ = {
     consts: {},
     types: [$.Thunk (a), $Maybe (a), a],
-    impl: flip (maybe_) (I)
+    impl: fromMaybe_
   };
 
   //# maybeToNullable :: Maybe a -> Nullable a
@@ -3307,7 +3320,11 @@
   //. -1
   //. ```
   function when(pred) {
-    return flip (ifElse (pred)) (I);
+    return function(f) {
+      return function(x) {
+        return pred (x) ? f (x) : x;
+      };
+    };
   }
   _.when = {
     consts: {},
@@ -3331,7 +3348,11 @@
   //. -1
   //. ```
   function unless(pred) {
-    return ifElse (pred) (I);
+    return function(f) {
+      return function(x) {
+        return pred (x) ? x : f (x);
+      };
+    };
   }
   _.unless = {
     consts: {},
@@ -3821,6 +3842,21 @@
     consts: {f: [Z.Foldable]},
     types: [$.Predicate (a), f (a), $Maybe (a)],
     impl: find
+  };
+
+  //# foldMap :: (Monoid m, Foldable f) => TypeRep m -> (a -> m) -> f a -> m
+  //.
+  //. Curried version of [`Z.foldMap`][]. Deconstructs a foldable by mapping
+  //. every element to a monoid and concatenating the results.
+  //.
+  //. ```javascript
+  //. > S.foldMap (String) (f => f.name) ([Math.sin, Math.cos, Math.tan])
+  //. 'sincostan'
+  //. ```
+  _.foldMap = {
+    consts: {b: [Z.Monoid], f: [Z.Foldable]},
+    types: [TypeRep (b), Fn (a) (b), f (a), b],
+    impl: curry3 (Z.foldMap)
   };
 
   //# unfoldr :: (b -> Maybe (Array2 a b)) -> b -> Array a
@@ -5230,6 +5266,8 @@
 //. [`Z.extend`]:       v:sanctuary-js/sanctuary-type-classes#extend
 //. [`Z.extract`]:      v:sanctuary-js/sanctuary-type-classes#extract
 //. [`Z.filter`]:       v:sanctuary-js/sanctuary-type-classes#filter
+//. [`Z.flip`]:         v:sanctuary-js/sanctuary-type-classes#flip
+//. [`Z.foldMap`]:      v:sanctuary-js/sanctuary-type-classes#foldMap
 //. [`Z.gt`]:           v:sanctuary-js/sanctuary-type-classes#gt
 //. [`Z.gte`]:          v:sanctuary-js/sanctuary-type-classes#gte
 //. [`Z.id`]:           v:sanctuary-js/sanctuary-type-classes#id
